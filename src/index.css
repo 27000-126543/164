@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "Noto Sans SC", system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #243447 transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #243447;
+    border-radius: 3px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: #2D4056;
+  }
+}
+
+@layer components {
+  .glow-card {
+    @apply bg-navy-800/60 border border-navy-700/50 rounded-xl backdrop-blur-sm;
+    box-shadow: 0 0 15px rgba(0, 212, 170, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+  .glow-card-hover {
+    @apply glow-card transition-all duration-300;
+  }
+  .glow-card-hover:hover {
+    box-shadow: 0 0 25px rgba(0, 212, 170, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    border-color: rgba(0, 212, 170, 0.2);
+  }
+  .cyber-btn {
+    @apply px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200;
+    background: linear-gradient(135deg, #00D4AA, #009B7D);
+    color: #0A1628;
+    box-shadow: 0 2px 8px rgba(0, 212, 170, 0.3);
+  }
+  .cyber-btn:hover {
+    box-shadow: 0 4px 16px rgba(0, 212, 170, 0.5);
+    transform: translateY(-1px);
+  }
+  .cyber-btn:active {
+    transform: translateY(0);
+  }
+  .danger-btn {
+    @apply px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200;
+    background: linear-gradient(135deg, #FF4757, #E03E4D);
+    color: white;
+    box-shadow: 0 2px 8px rgba(255, 71, 87, 0.3);
+  }
+  .danger-btn:hover {
+    box-shadow: 0 4px 16px rgba(255, 71, 87, 0.5);
+    transform: translateY(-1px);
+  }
+  .status-badge {
+    @apply px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .metric-value {
+    @apply text-3xl font-bold font-mono tracking-tight;
+  }
+  .section-title {
+    @apply text-lg font-semibold text-gray-100 mb-4;
+  }
+  .pulse-warning {
+    animation: pulseWarning 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes pulseWarning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes slideLeft {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.animate-slide-left {
+  animation: slideLeft 0.3s ease-out;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: #243447;
+}
+
+.recharts-text {
+  fill: #9CA3AF;
+  font-size: 11px;
+}
