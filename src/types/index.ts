@@ -51,6 +51,14 @@ export interface UploadedFile {
   uploadedAt: string;
 }
 
+export interface AdjustmentSource {
+  warningId: string;
+  productionLimitRatio: number;
+  dustControlIntensity: number;
+  trafficRestrictionLevel: number;
+  adjustedAt: string;
+}
+
 export interface SimulationTask {
   id: string;
   name: string;
@@ -64,6 +72,7 @@ export interface SimulationTask {
   aodValue: number;
   anomalyCount: number;
   files: UploadedFile[];
+  adjustmentSource?: AdjustmentSource;
 }
 
 export interface WarningEvent {

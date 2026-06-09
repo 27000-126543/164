@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import type { SimulationTask, WarningEvent, AdjustmentLog, EmissionReductionPlan, Report, ApprovalRecord, Recommendation, DailyStats } from '@/types';
 
+interface ChiefNotification {
+  id: string;
+  region: string;
+  message: string;
+  notifiedAt: string;
+}
+
 interface AppState {
   tasks: SimulationTask[];
   warnings: WarningEvent[];
@@ -11,10 +18,12 @@ interface AppState {
   recommendations: Recommendation[];
   dailyStats: DailyStats[];
   sidebarCollapsed: boolean;
+  chiefNotifications: ChiefNotification[];
 
   setTasks: (tasks: SimulationTask[]) => void;
   addTask: (task: SimulationTask) => void;
   updateTask: (id: string, updates: Partial<SimulationTask>) => void;
+  removeTask: (id: string) => void;
   setWarnings: (warnings: WarningEvent[]) => void;
   addWarning: (warning: WarningEvent) => void;
   updateWarning: (id: string, updates: Partial<WarningEvent>) => void;
@@ -30,6 +39,7 @@ interface AppState {
   setRecommendations: (recommendations: Recommendation[]) => void;
   setDailyStats: (stats: DailyStats[]) => void;
   toggleSidebar: () => void;
+  addChiefNotification: (n: ChiefNotification) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -42,12 +52,14 @@ export const useAppStore = create<AppState>((set) => ({
   recommendations: [],
   dailyStats: [],
   sidebarCollapsed: false,
+  chiefNotifications: [],
 
   setTasks: (tasks) => set({ tasks }),
   addTask: (task) => set((s) => ({ tasks: [task, ...s.tasks] })),
   updateTask: (id, updates) => set((s) => ({
     tasks: s.tasks.map((t) => t.id === id ? { ...t, ...updates } : t),
   })),
+  removeTask: (id) => set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
   setWarnings: (warnings) => set({ warnings }),
   addWarning: (warning) => set((s) => ({ warnings: [warning, ...s.warnings] })),
   updateWarning: (id, updates) => set((s) => ({
@@ -71,4 +83,5 @@ export const useAppStore = create<AppState>((set) => ({
   setRecommendations: (recommendations) => set({ recommendations }),
   setDailyStats: (dailyStats) => set({ dailyStats }),
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+  addChiefNotification: (n) => set((s) => ({ chiefNotifications: [n, ...s.chiefNotifications] })),
 }));

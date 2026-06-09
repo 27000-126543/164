@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import type { Report } from '@/types';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import {
   FileText, Eye, Download, X, Filter, Loader2,
 } from 'lucide-react';
@@ -38,6 +40,26 @@ const SOA_DATA = [
   { region: '西南', aromatic: 1.6, terpene: 2.6, svoc: 1.2, other: 0.4 },
   { region: '东北', aromatic: 2.5, terpene: 1.2, svoc: 1.7, other: 0.8 },
 ];
+
+const CONCENTRATION_DATA: { city: string; pm25: number; o3: number; aod: number }[] = [
+  { city: '北京', pm25: 185, o3: 268, aod: 1.82 },
+  { city: '上海', pm25: 89, o3: 195, aod: 0.95 },
+  { city: '广州', pm25: 72, o3: 152, aod: 0.68 },
+  { city: '成都', pm25: 112, o3: 178, aod: 1.15 },
+  { city: '武汉', pm25: 135, o3: 215, aod: 1.38 },
+  { city: '沈阳', pm25: 67, o3: 145, aod: 0.72 },
+  { city: '天津', pm25: 142, o3: 232, aod: 1.45 },
+  { city: '南京', pm25: 105, o3: 188, aod: 1.08 },
+  { city: '石家庄', pm25: 168, o3: 256, aod: 1.68 },
+];
+
+function getWarningLevel(pm25: number, o3: number, aod: number): string {
+  if (pm25 > 250 || o3 > 400 || aod > 2.0) return '红色预警 (一级)';
+  if (pm25 > 150 || o3 > 265 || aod > 1.5) return '橙色预警 (二级)';
+  if (pm25 > 115 || o3 > 215 || aod > 1.0) return '黄色预警 (三级)';
+  if (pm25 > 75 || o3 > 160 || aod > 0.6) return '蓝色预警 (四级)';
+  return '正常 (达标)';
+}
 
 type TabKey = 'contour' | 'aerosol' | 'ccn' | 'soa';
 const TABS: { key: TabKey; label: string }[] = [
@@ -126,7 +148,7 @@ function drawContourMap(canvas: HTMLCanvasElement, cityName: string) {
     ctx.fillText(city.name, cx, cy - 10);
     ctx.fillStyle = getContourColor(city.concentration);
     ctx.font = '10px "JetBrains Mono", monospace';
-    ctx.fillText(`${city.concentration}μg/m³`, cx, cy + 18);
+    ctx.fillText(`${city.concentration}ug/m3`, cx, cy + 18);
   }
 }
 
@@ -148,7 +170,7 @@ function ContourTab({ city }: { city: string }) {
     <div className="flex gap-4">
       <canvas ref={canvasRef} width={680} height={480} className="rounded-lg border border-navy-700/50" />
       <div className="flex flex-col gap-2 pt-2 min-w-[120px]">
-        <span className="text-xs text-gray-400 mb-1">PM2.5 (μg/m³)</span>
+        <span className="text-xs text-gray-400 mb-1">PM2.5 (ug/m3)</span>
         {LEGEND_ITEMS.map((item) => (
           <div key={item.label} className="flex items-center gap-2">
             <div className="w-4 h-3 rounded-sm shrink-0" style={{ backgroundColor: item.color }} />
@@ -164,26 +186,26 @@ function AerosolTab() {
   return (
     <div className="grid grid-cols-2 gap-4">
       <div>
-        <p className="text-sm text-gray-400 mb-2 text-center">直接辐射效应 (W/m²)</p>
+        <p className="text-sm text-gray-400 mb-2 text-center">Direct Radiative Forcing (W/m2)</p>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={DIRECT_FORCING}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="region" tick={CHART_STYLE.tick} />
             <YAxis tick={CHART_STYLE.tick} domain={[-6, 0]} />
             <Tooltip contentStyle={CHART_STYLE.tooltipStyle.contentStyle} labelStyle={CHART_STYLE.tooltipStyle.labelStyle} />
-            <Bar dataKey="value" fill="#FF8C00" radius={[4, 4, 0, 0]} name="直接辐射强迫" />
+            <Bar dataKey="value" fill="#FF8C00" radius={[4, 4, 0, 0]} name="Direct" />
           </BarChart>
         </ResponsiveContainer>
       </div>
       <div>
-        <p className="text-sm text-gray-400 mb-2 text-center">间接辐射效应 (W/m²)</p>
+        <p className="text-sm text-gray-400 mb-2 text-center">Indirect Radiative Forcing (W/m2)</p>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={INDIRECT_FORCING}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="region" tick={CHART_STYLE.tick} />
             <YAxis tick={CHART_STYLE.tick} domain={[-3, 0]} />
             <Tooltip contentStyle={CHART_STYLE.tooltipStyle.contentStyle} labelStyle={CHART_STYLE.tooltipStyle.labelStyle} />
-            <Bar dataKey="value" fill="#00D4AA" radius={[4, 4, 0, 0]} name="间接辐射强迫" />
+            <Bar dataKey="value" fill="#00D4AA" radius={[4, 4, 0, 0]} name="Indirect" />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -196,12 +218,12 @@ function CcnTab() {
     <ResponsiveContainer width="100%" height={380}>
       <LineChart data={CCN_DATA}>
         <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="ss" tick={CHART_STYLE.tick} label={{ value: '过饱和度', position: 'insideBottom', offset: -4, fill: '#9CA3AF', fontSize: 12 }} />
-        <YAxis tick={CHART_STYLE.tick} domain={[0, 100]} label={{ value: '活化率 (%)', angle: -90, position: 'insideLeft', fill: '#9CA3AF', fontSize: 12 }} />
+        <XAxis dataKey="ss" tick={CHART_STYLE.tick} />
+        <YAxis tick={CHART_STYLE.tick} domain={[0, 100]} />
         <Tooltip contentStyle={CHART_STYLE.tooltipStyle.contentStyle} labelStyle={CHART_STYLE.tooltipStyle.labelStyle} />
         <Legend wrapperStyle={{ color: '#9CA3AF' }} />
-        <Line type="monotone" dataKey="sulfate" stroke="#00D4AA" strokeWidth={2} dot={{ r: 3 }} name="硫酸盐气溶胶" />
-        <Line type="monotone" dataKey="organic" stroke="#FF8C00" strokeWidth={2} dot={{ r: 3 }} name="有机气溶胶" />
+        <Line type="monotone" dataKey="sulfate" stroke="#00D4AA" strokeWidth={2} dot={{ r: 3 }} name="Sulfate" />
+        <Line type="monotone" dataKey="organic" stroke="#FF8C00" strokeWidth={2} dot={{ r: 3 }} name="Organic" />
       </LineChart>
     </ResponsiveContainer>
   );
@@ -213,20 +235,256 @@ function SoaTab() {
       <BarChart data={SOA_DATA}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="region" tick={CHART_STYLE.tick} />
-        <YAxis tick={CHART_STYLE.tick} label={{ value: '贡献量 (μg/m³)', angle: -90, position: 'insideLeft', fill: '#9CA3AF', fontSize: 12 }} />
+        <YAxis tick={CHART_STYLE.tick} />
         <Tooltip contentStyle={CHART_STYLE.tooltipStyle.contentStyle} labelStyle={CHART_STYLE.tooltipStyle.labelStyle} />
         <Legend wrapperStyle={{ color: '#9CA3AF' }} />
-        <Bar dataKey="aromatic" stackId="a" fill="#00D4AA" name="芳香烃" />
-        <Bar dataKey="terpene" stackId="a" fill="#3B82F6" name="萜烯" />
-        <Bar dataKey="svoc" stackId="a" fill="#FF8C00" name="半挥发性有机物" />
-        <Bar dataKey="other" stackId="a" fill="#8B5CF6" name="其他" />
+        <Bar dataKey="aromatic" stackId="a" fill="#00D4AA" name="Aromatic" />
+        <Bar dataKey="terpene" stackId="a" fill="#3B82F6" name="Terpene" />
+        <Bar dataKey="svoc" stackId="a" fill="#FF8C00" name="SVOC" />
+        <Bar dataKey="other" stackId="a" fill="#8B5CF6" name="Other" />
       </BarChart>
     </ResponsiveContainer>
   );
 }
 
+function generatePDF(report: Report) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  const contentW = pageW - margin * 2;
+  let y = 20;
+
+  doc.setFillColor(10, 22, 40);
+  doc.rect(0, 0, pageW, 297, 'F');
+
+  doc.setTextColor(0, 212, 170);
+  doc.setFontSize(20);
+  doc.text('Atmospheric Chemistry-Aerosol-Cloud Simulation Report', margin, y);
+  y += 12;
+
+  doc.setTextColor(150, 160, 180);
+  doc.setFontSize(10);
+  doc.text('All-Weather Atmospheric Chemistry-Aerosol-Cloud Interaction Simulation', margin, y);
+  doc.text('& Air Quality Intelligent Early Warning Platform', margin, y + 5);
+  y += 15;
+
+  doc.setDrawColor(0, 212, 170);
+  doc.setLineWidth(0.5);
+  doc.line(margin, y, pageW - margin, y);
+  y += 10;
+
+  doc.setTextColor(200, 210, 220);
+  doc.setFontSize(12);
+  doc.text('Basic Information', margin, y);
+  y += 8;
+  doc.setFontSize(10);
+  doc.setTextColor(160, 170, 185);
+  const infoLines = [
+    `City: ${report.city}`,
+    `Season: ${report.season}`,
+    `Scenario: ${report.scenario}`,
+    `Generated At: ${report.generatedAt}`,
+    `Report ID: ${report.id}`,
+  ];
+  infoLines.forEach((line) => {
+    doc.text(line, margin + 4, y);
+    y += 6;
+  });
+  y += 6;
+
+  doc.setTextColor(200, 210, 220);
+  doc.setFontSize(12);
+  doc.text('1. Pollutant Concentration Distribution', margin, y);
+  y += 8;
+  doc.setFontSize(9);
+  doc.setTextColor(160, 170, 185);
+
+  const headerCols = ['City', 'PM2.5 (ug/m3)', 'O3 (ug/m3)', 'AOD', 'Warning Level'];
+  const colWidths = [25, 30, 30, 25, 55];
+  let cx = margin + 2;
+  doc.setFillColor(20, 35, 55);
+  doc.rect(margin, y - 4, contentW, 7, 'F');
+  doc.setTextColor(0, 212, 170);
+  headerCols.forEach((h, i) => {
+    doc.text(h, cx, y);
+    cx += colWidths[i];
+  });
+  y += 7;
+
+  CONCENTRATION_DATA.forEach((row, ri) => {
+    cx = margin + 2;
+    if (ri % 2 === 0) {
+      doc.setFillColor(15, 27, 42);
+      doc.rect(margin, y - 4, contentW, 6, 'F');
+    }
+    const wl = getWarningLevel(row.pm25, row.o3, row.aod);
+    const isOverLimit = row.pm25 > 75 || row.o3 > 160;
+    doc.setTextColor(isOverLimit ? 255 : 200, isOverLimit ? 71 : 210, isOverLimit ? 87 : 220);
+    const rowVals = [row.city, String(row.pm25), String(row.o3), String(row.aod), wl];
+    rowVals.forEach((v, i) => {
+      doc.text(v, cx, y);
+      cx += colWidths[i];
+    });
+    y += 6;
+  });
+
+  y += 4;
+  doc.setDrawColor(36, 52, 71);
+  doc.line(margin, y, pageW - margin, y);
+  y += 8;
+
+  doc.setTextColor(200, 210, 220);
+  doc.setFontSize(12);
+  doc.text('2. National Standards Reference', margin, y);
+  y += 8;
+  doc.setFontSize(9);
+  doc.setTextColor(160, 170, 185);
+  const standards = [
+    'PM2.5 Grade II: 75 ug/m3 (24h average)',
+    'O3 Grade II: 160 ug/m3 (8h average)',
+    'AOD Anomaly Threshold: 0.6 (visible impact)',
+    'Red: PM2.5>250, O3>400, AOD>2.0',
+    'Orange: PM2.5>150, O3>265, AOD>1.5',
+    'Yellow: PM2.5>115, O3>215, AOD>1.0',
+    'Blue: PM2.5>75, O3>160, AOD>0.6',
+  ];
+  standards.forEach((s) => {
+    doc.text(s, margin + 4, y);
+    y += 5.5;
+  });
+  y += 6;
+
+  doc.setDrawColor(36, 52, 71);
+  doc.line(margin, y, pageW - margin, y);
+  y += 8;
+
+  doc.setTextColor(200, 210, 220);
+  doc.setFontSize(12);
+  doc.text('3. Aerosol Radiative Effects', margin, y);
+  y += 8;
+  doc.setFontSize(9);
+  doc.setTextColor(160, 170, 185);
+
+  cx = margin + 2;
+  doc.setFillColor(20, 35, 55);
+  doc.rect(margin, y - 4, contentW, 7, 'F');
+  doc.setTextColor(0, 212, 170);
+  doc.text('Region', cx, y); cx += 30;
+  doc.text('Direct (W/m2)', cx, y); cx += 35;
+  doc.text('Indirect (W/m2)', cx, y);
+  y += 7;
+
+  for (let i = 0; i < DIRECT_FORCING.length; i++) {
+    cx = margin + 2;
+    if (i % 2 === 0) {
+      doc.setFillColor(15, 27, 42);
+      doc.rect(margin, y - 4, contentW, 6, 'F');
+    }
+    doc.setTextColor(200, 210, 220);
+    doc.text(DIRECT_FORCING[i].region, cx, y); cx += 30;
+    doc.text(String(DIRECT_FORCING[i].value), cx, y); cx += 35;
+    doc.text(String(INDIRECT_FORCING[i].value), cx, y);
+    y += 6;
+  }
+  y += 6;
+
+  doc.setDrawColor(36, 52, 71);
+  doc.line(margin, y, pageW - margin, y);
+  y += 8;
+
+  doc.setTextColor(200, 210, 220);
+  doc.setFontSize(12);
+  doc.text('4. CCN Activation Rate', margin, y);
+  y += 8;
+  doc.setFontSize(9);
+  doc.setTextColor(160, 170, 185);
+
+  cx = margin + 2;
+  doc.setFillColor(20, 35, 55);
+  doc.rect(margin, y - 4, contentW, 7, 'F');
+  doc.setTextColor(0, 212, 170);
+  doc.text('Supersaturation', cx, y); cx += 35;
+  doc.text('Sulfate (%)', cx, y); cx += 30;
+  doc.text('Organic (%)', cx, y);
+  y += 7;
+
+  CCN_DATA.forEach((row, ri) => {
+    cx = margin + 2;
+    if (ri % 2 === 0) {
+      doc.setFillColor(15, 27, 42);
+      doc.rect(margin, y - 4, contentW, 6, 'F');
+    }
+    doc.setTextColor(200, 210, 220);
+    doc.text(row.ss, cx, y); cx += 35;
+    doc.text(String(row.sulfate), cx, y); cx += 30;
+    doc.text(String(row.organic), cx, y);
+    y += 6;
+  });
+  y += 6;
+
+  if (y > 240) {
+    doc.addPage();
+    doc.setFillColor(10, 22, 40);
+    doc.rect(0, 0, pageW, 297, 'F');
+    y = 20;
+  }
+
+  doc.setDrawColor(36, 52, 71);
+  doc.line(margin, y, pageW - margin, y);
+  y += 8;
+
+  doc.setTextColor(200, 210, 220);
+  doc.setFontSize(12);
+  doc.text('5. SOA Contribution Decomposition (ug/m3)', margin, y);
+  y += 8;
+  doc.setFontSize(9);
+  doc.setTextColor(160, 170, 185);
+
+  cx = margin + 2;
+  doc.setFillColor(20, 35, 55);
+  doc.rect(margin, y - 4, contentW, 7, 'F');
+  doc.setTextColor(0, 212, 170);
+  doc.text('Region', cx, y); cx += 25;
+  doc.text('Aromatic', cx, y); cx += 25;
+  doc.text('Terpene', cx, y); cx += 22;
+  doc.text('SVOC', cx, y); cx += 22;
+  doc.text('Other', cx, y);
+  y += 7;
+
+  SOA_DATA.forEach((row, ri) => {
+    cx = margin + 2;
+    if (ri % 2 === 0) {
+      doc.setFillColor(15, 27, 42);
+      doc.rect(margin, y - 4, contentW, 6, 'F');
+    }
+    doc.setTextColor(200, 210, 220);
+    doc.text(row.region, cx, y); cx += 25;
+    doc.text(String(row.aromatic), cx, y); cx += 25;
+    doc.text(String(row.terpene), cx, y); cx += 22;
+    doc.text(String(row.svoc), cx, y); cx += 22;
+    doc.text(String(row.other), cx, y);
+    y += 6;
+  });
+  y += 10;
+
+  doc.setDrawColor(0, 212, 170);
+  doc.setLineWidth(0.3);
+  doc.line(margin, y, pageW - margin, y);
+  y += 8;
+
+  doc.setTextColor(100, 110, 125);
+  doc.setFontSize(8);
+  doc.text('Report generated by All-Weather Atmospheric Chemistry-Aerosol-Cloud', margin, y);
+  doc.text('Interaction Simulation & Air Quality Intelligent Early Warning Platform', margin, y + 4);
+  doc.text(`Generation time: ${report.generatedAt}`, margin, y + 10);
+
+  const fileName = `Atmospheric_Report_${report.city}_${report.season}_${report.scenario}.pdf`;
+  doc.save(fileName);
+}
+
 function PreviewPanel({ report, onClose }: { report: Report; onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<TabKey>('contour');
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
@@ -235,12 +493,12 @@ function PreviewPanel({ report, onClose }: { report: Report; onClose: () => void
           <div className="flex items-center gap-3">
             <FileText className="w-5 h-5 text-cyber-500" />
             <h2 className="text-lg font-semibold text-gray-100">
-              {report.city} · {report.season} · {report.scenario}
+              {report.city} / {report.season} / {report.scenario}
             </h2>
           </div>
           <div className="flex items-center gap-3">
-            <button className="cyber-btn flex items-center gap-1.5">
-              <Download className="w-4 h-4" /> 导出PDF
+            <button onClick={() => generatePDF(report)} className="cyber-btn flex items-center gap-1.5">
+              <Download className="w-4 h-4" /> Export PDF
             </button>
             <button onClick={onClose} className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-navy-700 text-gray-400 hover:text-gray-200 transition-colors">
               <X className="w-5 h-5" />
@@ -383,7 +641,10 @@ export default function ReportPage() {
                       >
                         <Eye className="w-3.5 h-3.5" /> 预览
                       </button>
-                      <button className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-gray-400 hover:bg-navy-700 transition-colors">
+                      <button
+                        onClick={() => generatePDF(report)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-gray-400 hover:bg-navy-700 transition-colors"
+                      >
                         <Download className="w-3.5 h-3.5" /> 导出PDF
                       </button>
                     </div>

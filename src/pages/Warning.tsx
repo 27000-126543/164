@@ -85,13 +85,14 @@ const FILTER_TABS: { key: 'all' | WarningEvent['status']; label: string }[] = [
 const TRAFFIC_OPTIONS = ['不限行', '单双号限行', '全员限行'];
 
 export default function Warning() {
-  const { warnings, updateWarning, adjustmentLogs, addAdjustmentLog, addReductionPlan } = useAppStore();
+  const { warnings, updateWarning, adjustmentLogs, addAdjustmentLog, addReductionPlan, addTask } = useAppStore();
   const [filter, setFilter] = useState<'all' | WarningEvent['status']>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reviewComment, setReviewComment] = useState('');
   const [productionLimit, setProductionLimit] = useState(30);
   const [dustControl, setDustControl] = useState(60);
   const [trafficLevel, setTrafficLevel] = useState(0);
+  const [confirmMsg, setConfirmMsg] = useState<string | null>(null);
 
   const selected = warnings.find((w) => w.id === selectedId) ?? null;
 
@@ -157,6 +158,11 @@ export default function Warning() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {confirmMsg && (
+        <div className="fixed top-20 right-6 z-50 bg-cyber-500/20 border border-cyber-500/50 text-cyber-400 px-6 py-3 rounded-lg shadow-lg animate-slide-up">
+          {confirmMsg}
+        </div>
+      )}
       <div className="glow-card p-5">
         <h2 className="section-title flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-warn-orange" />
@@ -440,10 +446,104 @@ export default function Warning() {
                 </div>
               </div>
 
-              <button className="cyber-btn w-full !text-sm">
+              <button
+                onClick={() => {
+                  if (!selected) return;
+                  const now = new Date();
+                  const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+                  addAdjustmentLog({
+                    id: `adj-${Date.now()}-1`,
+                    warningId: selected.id,
+                    parameter: '限产比例',
+                    oldValue: 30,
+                    newValue: productionLimit,
+                    operator: '陈志远',
+                    adjustedAt: ts,
+                  });
+                  addAdjustmentLog({
+                    id: `adj-${Date.now()}-2`,
+                    warningId: selected.id,
+                    parameter: '扬尘控制强度',
+                    oldValue: 60,
+                    newValue: dustControl,
+                    operator: '陈志远',
+                    adjustedAt: ts,
+                  });
+                  addAdjustmentLog({
+                    id: `adj-${Date.now()}-3`,
+                    warningId: selected.id,
+                    parameter: '交通限行等级',
+                    oldValue: 0,
+                    newValue: trafficLevel,
+                    operator: '陈志远',
+                    adjustedAt: ts,
+                  });
+
+                  addReductionPlan({
+                    id: `plan-${Date.now()}`,
+                    warningId: selected.id,
+                    productionLimitRatio: productionLimit / 100,
+                    dustControlIntensity: dustControl / 100,
+                    trafficRestrictionLevel: trafficLevel,
+                    effectiveFrom: ts,
+                  });
+
+                  const newTaskId = `task-${Date.now()}`;
+                  addTask({
+                    id: newTaskId,
+                    name: `${selected.region}_减排调整_${ts.replace(/[: ]/g, '')}`,
+                    region: selected.region,
+                    status: 'PENDING',
+                    scenario: '减排情景',
+                    createdAt: ts,
+                    updatedAt: ts,
+                    pm25Peak: 0,
+                    o3Peak: 0,
+                    aodValue: 0,
+                    anomalyCount: 0,
+                    files: [],
+                    adjustmentSource: {
+                      warningId: selected.id,
+                      productionLimitRatio: productionLimit / 100,
+                      dustControlIntensity: dustControl / 100,
+                      trafficRestrictionLevel: trafficLevel,
+                      adjustedAt: ts,
+                    },
+                  });
+
+                  updateWarning(selected.id, { status: 'closed' });
+
+                  setConfirmMsg('调整方案已确认，新模拟任务已创建');
+                  setTimeout(() => setConfirmMsg(null), 4000);
+                  setProductionLimit(30);
+                  setDustControl(60);
+                  setTrafficLevel(0);
+                }}
+                className="cyber-btn w-full !text-sm"
+              >
                 确认调整并重新模拟
               </button>
-              <button className="w-full px-4 py-2 rounded-lg text-sm font-medium border border-navy-600 text-gray-300 hover:bg-navy-700 transition-colors">
+              <button
+                onClick={() => {
+                  if (!selected) return;
+                  const now = new Date();
+                  const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+                  addReductionPlan({
+                    id: `plan-${Date.now()}`,
+                    warningId: selected.id,
+                    productionLimitRatio: productionLimit / 100,
+                    dustControlIntensity: dustControl / 100,
+                    trafficRestrictionLevel: trafficLevel,
+                    effectiveFrom: ts,
+                  });
+
+                  setConfirmMsg('方案已保存');
+                  setTimeout(() => setConfirmMsg(null), 3000);
+                }}
+                className="w-full px-4 py-2 rounded-lg text-sm font-medium border border-navy-600 text-gray-300 hover:bg-navy-700 transition-colors"
+              >
                 保存方案
               </button>
             </div>

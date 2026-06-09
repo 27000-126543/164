@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Microscope, ShieldCheck, Send, Check, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Microscope, ShieldCheck, Send, Check, AlertTriangle, ChevronDown, ChevronUp, Clock, Bell } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { cn } from '@/lib/utils';
 import type { ApprovalRecord } from '@/types';
@@ -42,12 +42,13 @@ function getPipelineStepStatus(approvals: ApprovalRecord[]) {
 }
 
 export default function Approval() {
-  const { approvals, updateApproval, addApproval, tasks } = useAppStore();
+  const { approvals, updateApproval, addApproval, tasks, updateTask, addChiefNotification, chiefNotifications } = useAppStore();
   const [activeTab, setActiveTab] = useState('all');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+  const [notifyMsg, setNotifyMsg] = useState<string | null>(null);
 
   const pendingCount = approvals.filter((a) => a.status === 'pending').length;
   const filteredApprovals = approvals.filter((a) => {
@@ -132,6 +133,11 @@ export default function Approval() {
       {successMsg && (
         <div className="fixed top-20 right-6 z-50 bg-cyber-500/20 border border-cyber-500/50 text-cyber-400 px-6 py-3 rounded-lg shadow-lg animate-slide-up">
           {successMsg}
+        </div>
+      )}
+      {notifyMsg && (
+        <div className="fixed top-32 right-6 z-50 bg-amber-500/20 border border-amber-500/50 text-amber-400 px-6 py-3 rounded-lg shadow-lg animate-slide-up">
+          {notifyMsg}
         </div>
       )}
 
@@ -376,20 +382,76 @@ export default function Approval() {
             </div>
             {anomalyTasks.length > 0 ? (
               <div className="space-y-3">
-                {anomalyTasks.map((task) => (
-                  <div key={task.id} className="bg-coral-500/10 border border-coral-500/20 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-semibold text-coral-400">{task.region}</span>
-                      <span className="text-xs bg-coral-500/20 text-coral-400 px-2 py-0.5 rounded-full">
-                        异常 {task.anomalyCount} 次
-                      </span>
+                {anomalyTasks.map((task) => {
+                  const regionNotifs = chiefNotifications.filter((n) => n.region === task.region);
+                  const lastNotif = regionNotifs[0];
+                  return (
+                    <div key={task.id} className="bg-coral-500/10 border border-coral-500/20 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold text-coral-400">{task.region}</span>
+                        <span className="text-xs bg-coral-500/20 text-coral-400 px-2 py-0.5 rounded-full">
+                          异常 {task.anomalyCount} 次
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400">该区域已暂停新任务</p>
+                      {lastNotif ? (
+                        <div className="mt-2 flex items-center gap-1.5 bg-cyber-500/10 border border-cyber-500/20 rounded px-2 py-1">
+                          <Bell className="h-3 w-3 text-cyber-400" />
+                          <span className="text-xs text-cyber-400">已通知首席科学家</span>
+                          <span className="text-xs text-gray-500 font-mono">{lastNotif.notifiedAt}</span>
+                          {regionNotifs.length > 1 && (
+                            <span className="text-xs text-gray-500">({regionNotifs.length}次)</span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-500">
+                          <Clock className="h-3 w-3" />
+                          尚未通知首席科学家
+                        </div>
+                      )}
+                      {regionNotifs.length > 1 && (
+                        <div className="mt-1.5 space-y-0.5">
+                          {regionNotifs.slice(1, 3).map((n) => (
+                            <div key={n.id} className="flex items-center gap-1.5 text-xs text-gray-500">
+                              <span className="font-mono">{n.notifiedAt}</span>
+                              <span>{n.message.slice(0, 20)}...</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-gray-400">该区域已暂停新任务</p>
-                  </div>
-                ))}
+                  );
+                })}
                 <div className="flex gap-2 pt-1">
-                  <button className="danger-btn text-xs flex-1">通知首席科学家</button>
-                  <button className="px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 border border-cyber-500/50 text-cyber-400 hover:bg-cyber-500/10 text-xs flex-1">
+                  <button
+                    onClick={() => {
+                      const now = new Date();
+                      const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                      anomalyTasks.forEach((task) => {
+                        addChiefNotification({
+                          id: `notify-${Date.now()}-${task.id}`,
+                          region: task.region,
+                          message: `${task.region}区域连续${task.anomalyCount}次模拟PM2.5峰值偏差超过30%，已暂停新任务，请核查。`,
+                          notifiedAt: ts,
+                        });
+                      });
+                      setNotifyMsg('已通知首席科学家');
+                      setTimeout(() => setNotifyMsg(null), 4000);
+                    }}
+                    className="danger-btn text-xs flex-1"
+                  >
+                    通知首席科学家
+                  </button>
+                  <button
+                    onClick={() => {
+                      anomalyTasks.forEach((task) => {
+                        updateTask(task.id, { anomalyCount: 0 });
+                      });
+                      setNotifyMsg('已恢复异常区域，新任务可正常创建');
+                      setTimeout(() => setNotifyMsg(null), 4000);
+                    }}
+                    className="px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 border border-cyber-500/50 text-cyber-400 hover:bg-cyber-500/10 text-xs flex-1"
+                  >
                     恢复该区域
                   </button>
                 </div>
