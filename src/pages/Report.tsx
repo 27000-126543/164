@@ -247,239 +247,187 @@ function SoaTab() {
   );
 }
 
-function generatePDF(report: Report) {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageW = doc.internal.pageSize.getWidth();
-  const margin = 15;
-  const contentW = pageW - margin * 2;
-  let y = 20;
+async function generatePDF(report: Report) {
+  const container = document.createElement('div');
+  container.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;background:#0A1628;color:#C8D2DC;font-family:"Noto Sans SC",system-ui,sans-serif;padding:0;';
 
-  doc.setFillColor(10, 22, 40);
-  doc.rect(0, 0, pageW, 297, 'F');
+  const HEADER_H = 52;
+  const FOOTER_H = 36;
+  const PAGE_H = 1123;
+  const CONTENT_H = PAGE_H - HEADER_H - FOOTER_H;
 
-  doc.setTextColor(0, 212, 170);
-  doc.setFontSize(20);
-  doc.text('Atmospheric Chemistry-Aerosol-Cloud Simulation Report', margin, y);
-  y += 12;
+  function headerHTML(pageNum: number) {
+    return `<div style="height:${HEADER_H}px;padding:10px 40px 8px;border-bottom:1px solid #1B2838;display:flex;align-items:center;justify-content:space-between;">
+      <div><span style="color:#00D4AA;font-size:14px;font-weight:700;">大气化学-气溶胶-云相互作用模拟报告</span><span style="color:#6B7280;font-size:11px;margin-left:16px;">${report.city} · ${report.season} · ${report.scenario}</span></div>
+      <span style="color:#6B7280;font-size:10px;">第 ${pageNum} 页</span>
+    </div>`;
+  }
 
-  doc.setTextColor(150, 160, 180);
-  doc.setFontSize(10);
-  doc.text('All-Weather Atmospheric Chemistry-Aerosol-Cloud Interaction Simulation', margin, y);
-  doc.text('& Air Quality Intelligent Early Warning Platform', margin, y + 5);
-  y += 15;
+  function footerHTML(pageNum: number, totalPages: number) {
+    return `<div style="height:${FOOTER_H}px;padding:8px 40px;border-top:1px solid #1B2838;display:flex;align-items:center;justify-content:space-between;">
+      <span style="color:#4B5563;font-size:9px;">全天候大气化学-气溶胶-云相互作用模拟与空气质量智能预警平台</span>
+      <span style="color:#4B5563;font-size:9px;">生成时间: ${report.generatedAt}　${pageNum} / ${totalPages}</span>
+    </div>`;
+  }
 
-  doc.setDrawColor(0, 212, 170);
-  doc.setLineWidth(0.5);
-  doc.line(margin, y, pageW - margin, y);
-  y += 10;
+  const sectionStyle = 'margin:0 0 20px;';
+  const titleStyle = 'color:#00D4AA;font-size:15px;font-weight:600;margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid #1B2838;';
+  const tableStyle = 'width:100%;border-collapse:collapse;font-size:12px;';
+  const thStyle = 'background:#14233A;color:#00D4AA;padding:8px 12px;text-align:left;font-weight:500;border-bottom:1px solid #1B2838;';
+  const tdStyle = 'padding:7px 12px;border-bottom:1px solid #111D2E;';
+  const tdAltStyle = 'padding:7px 12px;border-bottom:1px solid #111D2E;background:#0D1725;';
+  const overStyle = 'color:#FF4757;font-weight:600;';
 
-  doc.setTextColor(200, 210, 220);
-  doc.setFontSize(12);
-  doc.text('Basic Information', margin, y);
-  y += 8;
-  doc.setFontSize(10);
-  doc.setTextColor(160, 170, 185);
-  const infoLines = [
-    `City: ${report.city}`,
-    `Season: ${report.season}`,
-    `Scenario: ${report.scenario}`,
-    `Generated At: ${report.generatedAt}`,
-    `Report ID: ${report.id}`,
-  ];
-  infoLines.forEach((line) => {
-    doc.text(line, margin + 4, y);
-    y += 6;
-  });
-  y += 6;
+  const sections: string[] = [];
 
-  doc.setTextColor(200, 210, 220);
-  doc.setFontSize(12);
-  doc.text('1. Pollutant Concentration Distribution', margin, y);
-  y += 8;
-  doc.setFontSize(9);
-  doc.setTextColor(160, 170, 185);
+  sections.push(`<div style="${sectionStyle}">
+    <h2 style="${titleStyle}">基本信息</h2>
+    <table style="${tableStyle}"><tbody>
+      <tr><td style="${tdStyle};width:25%;color:#6B7280;">城市</td><td style="${tdStyle}">${report.city}</td><td style="${tdStyle};width:25%;color:#6B7280;">季节</td><td style="${tdStyle}">${report.season}</td></tr>
+      <tr><td style="${tdAltStyle};color:#6B7280;">排放情景</td><td style="${tdAltStyle}">${report.scenario}</td><td style="${tdAltStyle};color:#6B7280;">生成时间</td><td style="${tdAltStyle}">${report.generatedAt}</td></tr>
+      <tr><td style="${tdStyle};color:#6B7280;">报告编号</td><td style="${tdStyle}" colspan="3">${report.id}</td></tr>
+    </tbody></table>
+  </div>`);
 
-  const headerCols = ['City', 'PM2.5 (ug/m3)', 'O3 (ug/m3)', 'AOD', 'Warning Level'];
-  const colWidths = [25, 30, 30, 25, 55];
-  let cx = margin + 2;
-  doc.setFillColor(20, 35, 55);
-  doc.rect(margin, y - 4, contentW, 7, 'F');
-  doc.setTextColor(0, 212, 170);
-  headerCols.forEach((h, i) => {
-    doc.text(h, cx, y);
-    cx += colWidths[i];
-  });
-  y += 7;
+  sections.push(`<div style="${sectionStyle}">
+    <h2 style="${titleStyle}">一、污染物浓度时空分布</h2>
+    <table style="${tableStyle}"><thead><tr>
+      <th style="${thStyle}">城市</th><th style="${thStyle}">PM2.5 (μg/m³)</th><th style="${thStyle}">O₃ (μg/m³)</th><th style="${thStyle}">AOD</th><th style="${thStyle}">预警等级</th>
+    </tr></thead><tbody>
+    ${CONCENTRATION_DATA.map((r, i) => {
+      const wl = getWarningLevel(r.pm25, r.o3, r.aod);
+      const over = r.pm25 > 75 || r.o3 > 160;
+      const s = i % 2 === 0 ? tdStyle : tdAltStyle;
+      return `<tr><td style="${s}">${r.city}</td><td style="${s}${r.pm25 > 75 ? ';' + overStyle : ''}">${r.pm25}</td><td style="${s}${r.o3 > 160 ? ';' + overStyle : ''}">${r.o3}</td><td style="${s}">${r.aod}</td><td style="${s}${over ? ';' + overStyle : ''}">${wl}</td></tr>`;
+    }).join('')}
+    </tbody></table>
+  </div>`);
 
-  CONCENTRATION_DATA.forEach((row, ri) => {
-    cx = margin + 2;
-    if (ri % 2 === 0) {
-      doc.setFillColor(15, 27, 42);
-      doc.rect(margin, y - 4, contentW, 6, 'F');
+  sections.push(`<div style="${sectionStyle}">
+    <h2 style="${titleStyle}">二、国家二级标准参考</h2>
+    <table style="${tableStyle}"><thead><tr>
+      <th style="${thStyle}">污染物</th><th style="${thStyle}">标准限值</th><th style="${thStyle}">平均时间</th><th style="${thStyle}">说明</th>
+    </tr></thead><tbody>
+      <tr><td style="${tdStyle}">PM2.5</td><td style="${tdStyle}${overStyle}">75 μg/m³</td><td style="${tdStyle}">24小时平均</td><td style="${tdStyle}">超过即为超标</td></tr>
+      <tr><td style="${tdAltStyle}">O₃</td><td style="${tdAltStyle}${overStyle}">160 μg/m³</td><td style="${tdAltStyle}">8小时平均</td><td style="${tdAltStyle}">超过即为超标</td></tr>
+      <tr><td style="${tdStyle}">AOD</td><td style="${tdStyle}">0.6</td><td style="${tdStyle}">瞬时</td><td style="${tdStyle}">异常影响阈值</td></tr>
+    </tbody></table>
+    <div style="margin-top:10px;font-size:11px;color:#6B7280;">
+      <div style="margin-bottom:4px;">预警分级标准：</div>
+      <div>🔴 红色预警：PM2.5 &gt; 250，O₃ &gt; 400，AOD &gt; 2.0</div>
+      <div>🟠 橙色预警：PM2.5 &gt; 150，O₃ &gt; 265，AOD &gt; 1.5</div>
+      <div>🟡 黄色预警：PM2.5 &gt; 115，O₃ &gt; 215，AOD &gt; 1.0</div>
+      <div>🔵 蓝色预警：PM2.5 &gt; 75，O₃ &gt; 160，AOD &gt; 0.6</div>
+    </div>
+  </div>`);
+
+  sections.push(`<div style="${sectionStyle}">
+    <h2 style="${titleStyle}">三、气溶胶辐射效应</h2>
+    <table style="${tableStyle}"><thead><tr>
+      <th style="${thStyle}">区域</th><th style="${thStyle}">直接辐射强迫 (W/m²)</th><th style="${thStyle}">间接辐射强迫 (W/m²)</th>
+    </tr></thead><tbody>
+    ${DIRECT_FORCING.map((r, i) => {
+      const s = i % 2 === 0 ? tdStyle : tdAltStyle;
+      return `<tr><td style="${s}">${r.region}</td><td style="${s}">${r.value}</td><td style="${s}">${INDIRECT_FORCING[i].value}</td></tr>`;
+    }).join('')}
+    </tbody></table>
+  </div>`);
+
+  sections.push(`<div style="${sectionStyle}">
+    <h2 style="${titleStyle}">四、云凝结核(CCN)活化率</h2>
+    <table style="${tableStyle}"><thead><tr>
+      <th style="${thStyle}">过饱和度</th><th style="${thStyle}">硫酸盐气溶胶 (%)</th><th style="${thStyle}">有机气溶胶 (%)</th>
+    </tr></thead><tbody>
+    ${CCN_DATA.map((r, i) => {
+      const s = i % 2 === 0 ? tdStyle : tdAltStyle;
+      return `<tr><td style="${s}">${r.ss}</td><td style="${s}">${r.sulfate}</td><td style="${s}">${r.organic}</td></tr>`;
+    }).join('')}
+    </tbody></table>
+  </div>`);
+
+  sections.push(`<div style="${sectionStyle}">
+    <h2 style="${titleStyle}">五、二次有机气溶胶(SOA)贡献分解 (μg/m³)</h2>
+    <table style="${tableStyle}"><thead><tr>
+      <th style="${thStyle}">区域</th><th style="${thStyle}">芳香烃</th><th style="${thStyle}">萜烯</th><th style="${thStyle}">半挥发性有机物</th><th style="${thStyle}">其他</th>
+    </tr></thead><tbody>
+    ${SOA_DATA.map((r, i) => {
+      const s = i % 2 === 0 ? tdStyle : tdAltStyle;
+      return `<tr><td style="${s}">${r.region}</td><td style="${s}">${r.aromatic}</td><td style="${s}">${r.terpene}</td><td style="${s}">${r.svoc}</td><td style="${s}">${r.other}</td></tr>`;
+    }).join('')}
+    </tbody></table>
+  </div>`);
+
+  const pages: string[] = [];
+  let currentPage = '';
+  let currentHeight = 0;
+
+  for (const section of sections) {
+    const measureDiv = document.createElement('div');
+    measureDiv.style.cssText = `position:absolute;left:-9999px;top:0;width:714px;background:#0A1628;color:#C8D2DC;font-family:"Noto Sans SC",system-ui,sans-serif;padding:0;`;
+    measureDiv.innerHTML = section;
+    document.body.appendChild(measureDiv);
+    const sectionHeight = measureDiv.offsetHeight;
+    document.body.removeChild(measureDiv);
+
+    if (currentHeight + sectionHeight > CONTENT_H && currentPage !== '') {
+      pages.push(currentPage);
+      currentPage = section;
+      currentHeight = sectionHeight;
+    } else {
+      currentPage += section;
+      currentHeight += sectionHeight;
     }
-    const wl = getWarningLevel(row.pm25, row.o3, row.aod);
-    const isOverLimit = row.pm25 > 75 || row.o3 > 160;
-    doc.setTextColor(isOverLimit ? 255 : 200, isOverLimit ? 71 : 210, isOverLimit ? 87 : 220);
-    const rowVals = [row.city, String(row.pm25), String(row.o3), String(row.aod), wl];
-    rowVals.forEach((v, i) => {
-      doc.text(v, cx, y);
-      cx += colWidths[i];
+  }
+  if (currentPage) pages.push(currentPage);
+
+  const totalPages = pages.length;
+
+  const fullHTML = pages.map((pageContent, i) => {
+    return `<div style="width:794px;height:${PAGE_H}px;overflow:hidden;">
+      ${headerHTML(i + 1)}
+      <div style="padding:20px 40px;min-height:${CONTENT_H}px;">${pageContent}</div>
+      ${footerHTML(i + 1, totalPages)}
+    </div>`;
+  }).join('');
+
+  container.innerHTML = fullHTML;
+  document.body.appendChild(container);
+
+  try {
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#0A1628',
+      logging: false,
     });
-    y += 6;
-  });
 
-  y += 4;
-  doc.setDrawColor(36, 52, 71);
-  doc.line(margin, y, pageW - margin, y);
-  y += 8;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
 
-  doc.setTextColor(200, 210, 220);
-  doc.setFontSize(12);
-  doc.text('2. National Standards Reference', margin, y);
-  y += 8;
-  doc.setFontSize(9);
-  doc.setTextColor(160, 170, 185);
-  const standards = [
-    'PM2.5 Grade II: 75 ug/m3 (24h average)',
-    'O3 Grade II: 160 ug/m3 (8h average)',
-    'AOD Anomaly Threshold: 0.6 (visible impact)',
-    'Red: PM2.5>250, O3>400, AOD>2.0',
-    'Orange: PM2.5>150, O3>265, AOD>1.5',
-    'Yellow: PM2.5>115, O3>215, AOD>1.0',
-    'Blue: PM2.5>75, O3>160, AOD>0.6',
-  ];
-  standards.forEach((s) => {
-    doc.text(s, margin + 4, y);
-    y += 5.5;
-  });
-  y += 6;
+    const imgW = pageW;
+    const imgH = (canvas.height * pageW) / canvas.width;
+    const singlePageImgH = imgH / totalPages;
 
-  doc.setDrawColor(36, 52, 71);
-  doc.line(margin, y, pageW - margin, y);
-  y += 8;
-
-  doc.setTextColor(200, 210, 220);
-  doc.setFontSize(12);
-  doc.text('3. Aerosol Radiative Effects', margin, y);
-  y += 8;
-  doc.setFontSize(9);
-  doc.setTextColor(160, 170, 185);
-
-  cx = margin + 2;
-  doc.setFillColor(20, 35, 55);
-  doc.rect(margin, y - 4, contentW, 7, 'F');
-  doc.setTextColor(0, 212, 170);
-  doc.text('Region', cx, y); cx += 30;
-  doc.text('Direct (W/m2)', cx, y); cx += 35;
-  doc.text('Indirect (W/m2)', cx, y);
-  y += 7;
-
-  for (let i = 0; i < DIRECT_FORCING.length; i++) {
-    cx = margin + 2;
-    if (i % 2 === 0) {
-      doc.setFillColor(15, 27, 42);
-      doc.rect(margin, y - 4, contentW, 6, 'F');
+    for (let i = 0; i < totalPages; i++) {
+      if (i > 0) doc.addPage();
+      doc.addImage(
+        canvas,
+        'PNG',
+        0,
+        -i * singlePageImgH,
+        imgW,
+        imgH,
+        undefined,
+        'FAST'
+      );
     }
-    doc.setTextColor(200, 210, 220);
-    doc.text(DIRECT_FORCING[i].region, cx, y); cx += 30;
-    doc.text(String(DIRECT_FORCING[i].value), cx, y); cx += 35;
-    doc.text(String(INDIRECT_FORCING[i].value), cx, y);
-    y += 6;
+
+    const fileName = `大气模拟报告_${report.city}_${report.season}_${report.scenario}.pdf`;
+    doc.save(fileName);
+  } finally {
+    document.body.removeChild(container);
   }
-  y += 6;
-
-  doc.setDrawColor(36, 52, 71);
-  doc.line(margin, y, pageW - margin, y);
-  y += 8;
-
-  doc.setTextColor(200, 210, 220);
-  doc.setFontSize(12);
-  doc.text('4. CCN Activation Rate', margin, y);
-  y += 8;
-  doc.setFontSize(9);
-  doc.setTextColor(160, 170, 185);
-
-  cx = margin + 2;
-  doc.setFillColor(20, 35, 55);
-  doc.rect(margin, y - 4, contentW, 7, 'F');
-  doc.setTextColor(0, 212, 170);
-  doc.text('Supersaturation', cx, y); cx += 35;
-  doc.text('Sulfate (%)', cx, y); cx += 30;
-  doc.text('Organic (%)', cx, y);
-  y += 7;
-
-  CCN_DATA.forEach((row, ri) => {
-    cx = margin + 2;
-    if (ri % 2 === 0) {
-      doc.setFillColor(15, 27, 42);
-      doc.rect(margin, y - 4, contentW, 6, 'F');
-    }
-    doc.setTextColor(200, 210, 220);
-    doc.text(row.ss, cx, y); cx += 35;
-    doc.text(String(row.sulfate), cx, y); cx += 30;
-    doc.text(String(row.organic), cx, y);
-    y += 6;
-  });
-  y += 6;
-
-  if (y > 240) {
-    doc.addPage();
-    doc.setFillColor(10, 22, 40);
-    doc.rect(0, 0, pageW, 297, 'F');
-    y = 20;
-  }
-
-  doc.setDrawColor(36, 52, 71);
-  doc.line(margin, y, pageW - margin, y);
-  y += 8;
-
-  doc.setTextColor(200, 210, 220);
-  doc.setFontSize(12);
-  doc.text('5. SOA Contribution Decomposition (ug/m3)', margin, y);
-  y += 8;
-  doc.setFontSize(9);
-  doc.setTextColor(160, 170, 185);
-
-  cx = margin + 2;
-  doc.setFillColor(20, 35, 55);
-  doc.rect(margin, y - 4, contentW, 7, 'F');
-  doc.setTextColor(0, 212, 170);
-  doc.text('Region', cx, y); cx += 25;
-  doc.text('Aromatic', cx, y); cx += 25;
-  doc.text('Terpene', cx, y); cx += 22;
-  doc.text('SVOC', cx, y); cx += 22;
-  doc.text('Other', cx, y);
-  y += 7;
-
-  SOA_DATA.forEach((row, ri) => {
-    cx = margin + 2;
-    if (ri % 2 === 0) {
-      doc.setFillColor(15, 27, 42);
-      doc.rect(margin, y - 4, contentW, 6, 'F');
-    }
-    doc.setTextColor(200, 210, 220);
-    doc.text(row.region, cx, y); cx += 25;
-    doc.text(String(row.aromatic), cx, y); cx += 25;
-    doc.text(String(row.terpene), cx, y); cx += 22;
-    doc.text(String(row.svoc), cx, y); cx += 22;
-    doc.text(String(row.other), cx, y);
-    y += 6;
-  });
-  y += 10;
-
-  doc.setDrawColor(0, 212, 170);
-  doc.setLineWidth(0.3);
-  doc.line(margin, y, pageW - margin, y);
-  y += 8;
-
-  doc.setTextColor(100, 110, 125);
-  doc.setFontSize(8);
-  doc.text('Report generated by All-Weather Atmospheric Chemistry-Aerosol-Cloud', margin, y);
-  doc.text('Interaction Simulation & Air Quality Intelligent Early Warning Platform', margin, y + 4);
-  doc.text(`Generation time: ${report.generatedAt}`, margin, y + 10);
-
-  const fileName = `Atmospheric_Report_${report.city}_${report.season}_${report.scenario}.pdf`;
-  doc.save(fileName);
 }
 
 function PreviewPanel({ report, onClose }: { report: Report; onClose: () => void }) {
