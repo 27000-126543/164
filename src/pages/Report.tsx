@@ -394,6 +394,8 @@ async function generatePDF(report: Report) {
   document.body.appendChild(container);
 
   try {
+    await document.fonts.ready;
+
     const canvas = await html2canvas(container, {
       scale: 2,
       useCORS: true,
@@ -430,7 +432,7 @@ async function generatePDF(report: Report) {
   }
 }
 
-function PreviewPanel({ report, onClose }: { report: Report; onClose: () => void }) {
+function PreviewPanel({ report, onClose, onExport, exporting }: { report: Report; onClose: () => void; onExport: (r: Report) => void; exporting: boolean }) {
   const [activeTab, setActiveTab] = useState<TabKey>('contour');
 
   return (
@@ -445,8 +447,8 @@ function PreviewPanel({ report, onClose }: { report: Report; onClose: () => void
             </h2>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => generatePDF(report)} className="cyber-btn flex items-center gap-1.5">
-              <Download className="w-4 h-4" /> Export PDF
+            <button onClick={() => onExport(report)} disabled={exporting} className="cyber-btn flex items-center gap-1.5 disabled:opacity-50">
+              {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Export PDF
             </button>
             <button onClick={onClose} className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-navy-700 text-gray-400 hover:text-gray-200 transition-colors">
               <X className="w-5 h-5" />
@@ -490,6 +492,17 @@ export default function ReportPage() {
   const [season, setSeason] = useState('夏');
   const [scenario, setScenario] = useState('基准情景');
   const [previewReport, setPreviewReport] = useState<Report | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = useCallback(async (rpt: Report) => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await generatePDF(rpt);
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting]);
 
   const handleGenerate = useCallback(() => {
     const id = `rpt-${Date.now()}`;
@@ -590,10 +603,11 @@ export default function ReportPage() {
                         <Eye className="w-3.5 h-3.5" /> 预览
                       </button>
                       <button
-                        onClick={() => generatePDF(report)}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-gray-400 hover:bg-navy-700 transition-colors"
+                        onClick={() => handleExport(report)}
+                        disabled={exporting}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-gray-400 hover:bg-navy-700 transition-colors disabled:opacity-50"
                       >
-                        <Download className="w-3.5 h-3.5" /> 导出PDF
+                        {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} 导出PDF
                       </button>
                     </div>
                   )}
@@ -605,7 +619,7 @@ export default function ReportPage() {
       </div>
 
       {previewReport && (
-        <PreviewPanel report={previewReport} onClose={() => setPreviewReport(null)} />
+        <PreviewPanel report={previewReport} onClose={() => setPreviewReport(null)} onExport={handleExport} exporting={exporting} />
       )}
     </div>
   );
